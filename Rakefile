@@ -1,29 +1,17 @@
-require 'rubygems/package_task'
+# frozen_string_literal: true
 
-spec = eval(File.read("libfacedetection.gemspec"))
-GEM_RUBY_VERSION = "3.4.0"
-DOCKER_IMAGE = "ruby:#{GEM_RUBY_VERSION}-bullseye"
+require "bundler/gem_tasks"
 
-def compile_cmd(_arch)
-  "gem instal gem-compiler; curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; source '/root/.cargo/env'; rake gem:native"
-end
+task gem: :build
 
-gem_task = Gem::PackageTask.new(spec) do |pkg|
-  pkg.need_zip = true
-  pkg.need_tar = true
-end
+begin
+  require "rb_sys/extensiontask"
 
-desc "Generate a pre-compiled native gem for #{RUBY_PLATFORM}"
-task "gem:native" => ["gem"] do
-  sh "gem compile #{gem_task.package_dir_path}.gem"
-end
+  GEMSPEC = Gem::Specification.load("libfacedetection.gemspec")
 
-desc "Generate a pre-compiled native gem for aarch64-linux"
-task "gem:native:aarch64-linux" => ["gem"] do
-  sh %{docker run --rm --platform linux/arm64 -v $(pwd):/src -w /src #{DOCKER_IMAGE} /bin/bash -c "#{compile_cmd('aarch64-unknown-linux-musl')}"}
-end
-
-desc "Generate a pre-compiled native gem for x86_64-linux"
-task "gem:native:x86_64-linux" => ["gem"] do
-  sh %{docker run --rm --platform linux/amd64 -v $(pwd):/src -w /src #{DOCKER_IMAGE} /bin/bash -c "#{compile_cmd('x86_64-unknown-linux-musl')}"}
+  RbSys::ExtensionTask.new("libfacedetection-ruby", GEMSPEC) do |ext|
+    ext.lib_dir = "lib/libfacedetection"
+  end
+rescue LoadError
+  warn "rb_sys not available, skipping compile tasks (run `bundle install` to enable them)"
 end
